@@ -1,32 +1,32 @@
-// (c) Facebook, Inc. and its affiliates.
-
-//#region Modules
+//Inizializzazione dei moduli
 const S = require('Scene');
 const BT = require('BodyTracking');
 const CI = require('CameraInfo');
 const R = require('Reactive');
-////#endregion
 
-//#region Global Variables
+//Definizione delle dimensioni della camera
 const width = CI.previewSize.width.div(CI.previewScreenScale);
 const height = CI.previewSize.height.div(CI.previewScreenScale);
 
+//Impostazione della constanti per la scena
 const Config = {
+    //Dimensioni della camera
     camera_size: {
         width:  width,
         height: height},
+    //Area di visibilità della camera
     safeArea: {
         minX : width.mul(0.05),
         maxX : width.mul(0.95),
         minY : height.mul(0.05),
         maxY : height.mul(0.95)},
-    jnt_smoothing: 50,
-    body_scale: R.vector(600, 600, 1),
-    feet_multiplier: 0.35,
-    hand_multiplier: 0.7
+    jnt_smoothing: 50, //Costante di attuenazione tra i punti
+    body_scale: R.vector(600, 600, 1), //Scala della scena
+    feet_multiplier: 0.35, //Costante di dimensionamento dei piedi
+    hand_multiplier: 0.7 //Costante di dimensionamento delle mani
 }
 
-// BODY
+// Definizione delle sezioni del corpo
 const Body = BT.body(0);
 const Pose = Body.pose2D;
 const Head = Pose.head;
@@ -35,12 +35,13 @@ const RArm = Pose.rightArm;
 const Torso = Pose.torso;
 const LLeg = Pose.leftLeg;
 const RLeg = Pose.rightLeg;
-const headDist = getScale(Head.topHead,  Head.chin).mul(Config.camera_size.height.div(Config.camera_size.width)).mul(0.88);
-const headScale = R.point(headDist, headDist, 1.0);
-const chinPosYLow = Head.chin.keyPoint.y.mul(Config.camera_size.height).gt(Config.camera_size.height.mul(0.7));
-const isCloseup = headScale.x.div(2.5).gt(Config.body_scale.x).and(chinPosYLow);
-const hideMeshes = isCloseup.or(BT.count.lt(1.0));
+const headDist = getScale(Head.topHead,  Head.chin).mul(Config.camera_size.height.div(Config.camera_size.width)).mul(0.88); // Distanza della testa dalla camera
+const headScale = R.point(headDist, headDist, 1.0); // Scala della testa
+const chinPosYLow = Head.chin.keyPoint.y.mul(Config.camera_size.height).gt(Config.camera_size.height.mul(0.7)); //Posizione rispetto a Y del mento
+const isCloseup = headScale.x.div(2.5).gt(Config.body_scale.x).and(chinPosYLow); // Booleano per la  vicinanza
+const hideMeshes = isCloseup.or(BT.count.lt(1.0)); //
 
+// Funzione per il calcolo dell'angolo tra le coordinate di due punti
 function getAngleBetweenPoints(pointA, pointB){
 
     const pAx = pointA.keyPoint.x.mul(Config.camera_size.width).expSmooth(Config.jnt_smoothing);
@@ -55,6 +56,7 @@ function getAngleBetweenPoints(pointA, pointB){
     return angle;
 }
 
+// Funzione per il calcolo della posizione media tra le coordinate di due punti
 function getAveragePosition(pointA, pointB){
     const pAx = pointA.keyPoint.x.mul(Config.camera_size.width).expSmooth(Config.jnt_smoothing);
     const pAy = pointA.keyPoint.y.mul(Config.camera_size.height).expSmooth(Config.jnt_smoothing).mul(-1.0);
@@ -67,11 +69,13 @@ function getAveragePosition(pointA, pointB){
     return R.point2d(averagePosX, averagePosY);
 }
 
+// Funzione per il calcolo del fattore scala tra due punti
 function getScale(pointA, pointB){
     var multiplier =  R.distance(pointA.keyPoint, pointB.keyPoint).div(62).expSmooth(Config.jnt_smoothing);
     return multiplier.mul(Config.body_scale.x).mul(Config.camera_size.width);
 }
 
+// Funzione per il calcolo della posizione di offset di un punto rispetto a un altro punto
 function offsetPoint(point_a, point_b, multiplier){
     const x = point_b.x.sub(point_a.x).mul(multiplier).add(point_b.x);
     const y = point_b.y.sub(point_a.y).mul(multiplier).add(point_b.y);
@@ -79,6 +83,7 @@ function offsetPoint(point_a, point_b, multiplier){
     return R.point2d(x, y);
 }
 
+// Funzione per la definizione degli attributi delle giunture
 function setJointTransform(joint, mainKp, angle, scale, mesh, torsoDep){
     const parentX = mainKp.keyPoint.x.mul(Config.camera_size.width).expSmooth(Config.jnt_smoothing);
     const parentY = mainKp.keyPoint.y.mul(Config.camera_size.height).expSmooth(Config.jnt_smoothing).mul(-1.0);
@@ -107,8 +112,8 @@ function setJointTransform(joint, mainKp, angle, scale, mesh, torsoDep){
         mesh.hidden = hideMesh;
     }
 }
-////#endregion
 
+// Ricerca degli elementi della scena che sono collegati al modello 3D
 Promise.all([
     S.root.findFirst('rigNull'),
     S.root.findByPath('**/bodyRig/Armature/skeleton/*'),
@@ -119,7 +124,7 @@ Promise.all([
         const rigNull =       results[0];
         const rig =           results[1];
         const meshes =        results[2];
-        //joints
+        // Sezioni del corpo
         const Chin =                      rig[0];
         const RShoulder =                 rig[1];
         const RElbowShoulder =            rig[2];
@@ -145,7 +150,7 @@ Promise.all([
         const LKneeAnkle =                rig[22];
         const LAnkle =                    rig[23];
         const LFoot =                     rig[24];
-        //meshes
+        // Meshes
         const headMesh =                 meshes[0];
         const glassesMesh =              meshes[1];
         const torsoMesh =                meshes[2];
@@ -162,12 +167,12 @@ Promise.all([
         const lLegMesh =                 meshes[13];
         const lFootMesh =                meshes[14];
 
-        //Pin Rig to top corner
+        // Calcolo del punto nell'angolo della scena
         rigNull.transform.x = Config.camera_size.width.div(-2.0);
         rigNull.transform.y = Config.camera_size.height.div(2.0);
         rigNull.transform.scaleX = rigNull.transform.scaleY = rigNull.transform.scaleZ = 1;
 
-        // Head & Glasses Transform
+        // Definizione della transform di testa e mento
         const averageEyes = getAveragePosition(Head.leftEye, Head.rightEye);
         glassesMesh.transform.x = averageEyes.x;
         glassesMesh.transform.y = averageEyes.y;
@@ -175,29 +180,31 @@ Promise.all([
         Chin.transform.x = Head.chin.keyPoint.x.mul(Config.camera_size.width).expSmooth(Config.jnt_smoothing);
         Chin.transform.y = Head.chin.keyPoint.y.mul(Config.camera_size.height).expSmooth(Config.jnt_smoothing).mul(-1.0);
 
-         // Scale
+         // Definizione della scala di testa e mento
         glassesMesh.transform.scale = Chin.transform.scale = headScale;
 
-         // Rotation
+         // Definizione della scala di testa e mento
         const lEyeY = Head.leftEye.keyPoint.y.mul(Config.camera_size.height).expSmooth(Config.jnt_smoothing).mul(-1.0);
         const rEyeY = Head.rightEye.keyPoint.y.mul(Config.camera_size.height).expSmooth(Config.jnt_smoothing).mul(-1.0);
         const rotZ = lEyeY.sub(rEyeY).mul(3.1416/180.0).mul(0.85);
         Chin.transform.rotationZ = glassesMesh.transform.rotationZ = rotZ;
 
-         //visibility
+         // Definizione della visibilità delle mesh
         const visibleY = Chin.transform.y.mul(-1.0).gt(Config.safeArea.minY).and(Chin.transform.y.mul(-1.0).lt(Config.safeArea.maxY));
         const visibleX = Chin.transform.x.gt(Config.safeArea.minY).and(Chin.transform.x.lt(Config.safeArea.maxX));
         glassesMesh.hidden = headMesh.hidden = visibleY.and(visibleX).not().or(BT.count.lt(1));
 
         torsoMesh.hidden = lArmMesh.hidden.and(rArmMesh.hidden);
 
-        //Calculate Scale
+        // Calcolo della scala
         const LArmScale = R.point(Config.body_scale.x, getScale(LArm.shoulder, LArm.elbow), 1.0);
         const RArmScale = R.point(Config.body_scale.x, getScale(RArm.shoulder, RArm.elbow), 1.0);
         const LLegScale = R.point(getScale(Torso.leftHip, LLeg.knee), Config.body_scale.x,  1.0);
         const RLegScale = R.point(getScale(Torso.rightHip, RLeg.knee), Config.body_scale.x, 1.0);
 
+
         const kp_joints = [
+            // Definizione dei keypoints delle giunture
             { KP: LArm.shoulder,   joint: LTorso,           angle: null                        , scale: LArmScale, mesh: null         , tDep: null             },
             { KP: LArm.shoulder,   joint: LShoulder ,       angle: [LArm.shoulder, LArm.elbow] , scale: LArmScale, mesh: lArmMesh     , tDep: null             },
             { KP: LArm.elbow,      joint: LElbowShoulder,   angle: [LArm.shoulder, LArm.elbow] , scale: LArmScale, mesh: null         , tDep: null             },
@@ -208,7 +215,7 @@ Promise.all([
             { KP: LLeg.ankle,      joint: LAnkle,           angle: null                        , scale: LLegScale, mesh: lFootMesh    , tDep: torsoMesh.hidden },
             { KP: Torso.leftHip,   joint: LHipTorso,        angle: null                        , scale: LLegScale, mesh: null         , tDep: null             },
             { KP: Torso.leftHip,   joint: LHip,             angle: null                        , scale: LLegScale, mesh: lThighMesh   , tDep: torsoMesh.hidden },
-
+            // Definizione dei keypoints del corpo
             { KP: RArm.shoulder,   joint: RTorso,           angle: null                        , scale: RArmScale, mesh: null         , tDep: null             },
             { KP: RArm.shoulder,   joint: RShoulder ,       angle: [RArm.elbow, RArm.shoulder] , scale: RArmScale, mesh: rArmMesh     , tDep: null             },
             { KP: RArm.elbow,      joint: RElbowShoulder,   angle: [RArm.elbow, RArm.shoulder] , scale: RArmScale, mesh: null         , tDep: null             },
@@ -221,6 +228,7 @@ Promise.all([
             { KP: Torso.rightHip,  joint: RHip,             angle: null                        , scale: RLegScale, mesh: rThighMesh   , tDep: null             }
         ]
 
+        // Definizione degli arti del corpo
         const limbs = [
             { joint: LHand, pointA: LElbowWrist, pointB: LWrist, scale: Config.hand_multiplier },
             { joint: RHand, pointA: RElbowWrist, pointB: RWrist, scale: Config.hand_multiplier },
